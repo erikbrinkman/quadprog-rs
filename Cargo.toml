@@ -1,6 +1,10 @@
 [package]
 name = "quadprog"
 version = "0.0.0"
+readme = "README.md"
+repository = "https://github.com/erikbrinkman/quadprog-rs"
+description = "A dense quadratic program solver in pure rust"
+license = "GPL-2.0"
 edition = "2021"
 
 [dev-dependencies]
