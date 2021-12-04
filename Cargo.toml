@@ -1,6 +1,6 @@
 [package]
 name = "quadprog"
-version = "0.0.0"
+version = "0.0.1"
 readme = "README.md"
 repository = "https://github.com/erikbrinkman/quadprog-rs"
 documentation = "https://docs.rs/quadprog"

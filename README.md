@@ -14,7 +14,7 @@ Add this to your `Cargo.toml`:
 
 ```
 [dependencies]
-quadprog = "0.0.0"
+quadprog = "0.0.1"
 ```
 
 Then solve using:
