@@ -1,6 +1,8 @@
 QuadProg
 ========
 
+[![tests](https://github.com/erikbrinkman/quadprog-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/erikbrinkman/quadprog-rs/actions/workflows/rust.yml)
+
 A dense quadratic program solver in pure rust, based on the Goldfarb Idnani algorithm.
 This implementation is based on a few sources, but drew primarily from [quadprog](https://github.com/quadprog/quadprog).
 
