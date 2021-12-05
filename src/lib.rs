@@ -220,17 +220,16 @@ fn qr_insert(r: usize, vec: &mut [f64], mat: &mut [f64]) {
     }
 }
 
-/// Drop the col-th column of rmat.
+/// Drop the col-1-th column of rmat.
 /// Apply orthogonal transformations to the rows of rmat to restore rmat to upper triangular form.
 /// Apply the same orthogonal transformations to the columns of qmat.
 ///
 /// Note that rmat is an r by r upper triangular matrix stored as packed columns.
 /// So the input size is r*(r+1)/2 and the output size is (r-1)*r/2.
-fn qr_delete(col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
+fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
     let n = usqrt(qmat.len());
     debug_assert_eq!(qmat.len(), n * n);
-    let r = (usqrt(8 * rmat.len() + 1) - 1) / 2;
-    debug_assert_eq!(r * (r + 1) / 2, rmat.len());
+    debug_assert!(r * (r + 1) / 2 <= rmat.len());
 
     for i in col..r {
         // On this iteration, reduce the (i+1, i+1) element of R to zero,
@@ -422,14 +421,14 @@ pub fn solve_qp(
         let aadd = amat.chunks_exact(n).nth(iadd).unwrap();
         let mut slack = sv[iadd];
         let mut u = 0.0;
-        let direc = slack.signum();
+        let reverse_step = slack > 0.0;
 
         let mut idel: usize; // the constraint to remove from the active set
         while {
             // Set dv = J^T n, where n is the column of C corresponding to the constraint
             // that we are adding to the active set.
             for (dvi, grow) in dv.iter_mut().zip(qmat.chunks_exact(n)) {
-                *dvi = direc * dot(grow, aadd);
+                *dvi = -dot(grow, aadd);
             }
 
             // Set zv = J_2 d_2. This is the step direction for the primal variable xv.
@@ -469,8 +468,8 @@ pub fn solve_qp(
             let (ztn, t2) = if dot(zv, zv).abs() <= f64::EPSILON {
                 (0.0, f64::INFINITY)
             } else {
-                let temp_ztn = dot(zv, aadd);
-                (temp_ztn.abs(), slack / temp_ztn)
+                let temp_ztn = -dot(zv, aadd);
+                (temp_ztn, slack.abs() / temp_ztn)
             };
             if t1 == f64::INFINITY && t2 == f64::INFINITY {
                 return Err("optimization is infeasible");
@@ -478,7 +477,12 @@ pub fn solve_qp(
 
             // We will take a full step if t2 <= t1.
             let partial_step = t2 > t1;
-            let step = if partial_step { t1 } else { t2 };
+            let step_length = if partial_step { t1 } else { t2 };
+            let step = if reverse_step {
+                -step_length
+            } else {
+                step_length
+            };
 
             // NOTE executing the next two steps only matters if t2 < inf, but the code is cleaner
             // without the check and doesn't run any slower
@@ -495,8 +499,7 @@ pub fn solve_qp(
             partial_step
         } {
             // Remove constraint idel from the active set.
-            let rlen = iact.len() * (iact.len() + 1) / 2;
-            qr_delete(idel + 1, qmat, &mut rmat[..rlen]);
+            qr_delete(iact.len(), idel + 1, qmat, rmat);
             // NOTE for some reason swap_remove doesn't perform better
             uv.remove(idel);
             iact.remove(idel);
@@ -520,7 +523,7 @@ pub fn solve_qp(
     // copy into lagrangian
     let mut lagr = vec![0.0; q];
     for (act, uvi) in iact.iter().copied().zip(uv) {
-        lagr[act] = uvi;
+        lagr[act] = uvi.abs();
     }
 
     Ok(Solution {
