@@ -1,7 +1,6 @@
 //! Solve dense quadratic programs.
 //!
-//! This crate implements the Goldfarb Indiani method[^1] for solving quadratic programs of the
-//! form:
+//! This crate implements the Goldfarb-Idnani method for solving quadratic programs of the form:
 //!
 //! ```text
 //!     minimize     1/2 x' Q x + c' x
@@ -9,8 +8,8 @@
 //!                  A2 x <= b2
 //! ```
 //!
-//! in pure rust. These are solved via the only exported function [solve_qp] which returns a
-//! [Solution] struct.
+//! in pure rust. These are solved via the only exported function [`solve_qp`] which returns a
+//! [`Solution`] struct.
 //!
 //! # Examples
 //!
@@ -32,9 +31,12 @@
 //! assert_eq!(sol.sol, &[-0.6, 0.8]);
 //! ```
 //!
-//! [^1] D. Goldfarb and A. Idnani (1983). A numerically stable dual
-//!     method for solving strictly convex quadratic programs.
-//!     Mathematical Programming, 27, 1-33.
+//! # References
+//!
+//! D. Goldfarb and A. Idnani (1983). A numerically stable dual method for solving strictly
+//! convex quadratic programs. Mathematical Programming, 27, 1-33.
+#![forbid(unsafe_code)]
+#![warn(clippy::pedantic)]
 
 #[cfg(test)]
 extern crate approx;
@@ -43,7 +45,7 @@ use std::cmp::min;
 
 /// integer sqrt
 fn usqrt(val: usize) -> usize {
-    (val as f64).sqrt() as usize
+    val.isqrt()
 }
 
 /// y = a * x + y
@@ -174,11 +176,7 @@ fn hypot(left: f64, right: f64) -> f64 {
 /// get length len slices to the left and right of split
 ///
 /// for a matrix this will be neighboring rows.
-fn left_right_slices<'a, T>(
-    slice: &'a mut [T],
-    split: usize,
-    len: usize,
-) -> (&'a mut [T], &'a mut [T]) {
+fn left_right_slices<T>(slice: &mut [T], split: usize, len: usize) -> (&mut [T], &mut [T]) {
     let (left, right) = slice.split_at_mut(split);
     (&mut left[split - len..], &mut right[..len])
 }
@@ -315,6 +313,12 @@ pub struct Solution {
 ///
 /// Note that `Q` is mutable, and is used for part of the computation. If you need to use `Q`
 /// afterward, make a copy first.
+///
+/// # Errors
+///
+/// Returns an error string if `qmat` or `amat` have inconsistent sizes given `cvec` and `bvec`,
+/// if `Q` is not positive definite, or if the problem is infeasible.
+#[allow(clippy::too_many_lines)]
 pub fn solve_qp(
     qmat: &mut [f64],
     cvec: &[f64],
@@ -418,7 +422,7 @@ pub fn solve_qp(
     } {
         iter += 1;
 
-        let aadd = amat.chunks_exact(n).nth(iadd).unwrap();
+        let aadd = &amat[iadd * n..(iadd + 1) * n];
         let mut slack = sv[iadd];
         let mut u = 0.0;
         let reverse_step = slack > 0.0;
@@ -493,7 +497,7 @@ pub fn solve_qp(
             obj += step * ztn * (step / 2.0 + u);
 
             // Update dual variable
-            axpy(-step, &rv, &mut uv);
+            axpy(-step, rv, &mut uv);
             u += step;
 
             partial_step
@@ -509,7 +513,7 @@ pub fn solve_qp(
 
             // We took a step in primal space, but only took a partial step.
             // So we need to update the slack variable that we are currently bringing to zero.
-            slack = bvec[iadd] - dot(&sol, &aadd);
+            slack = bvec[iadd] - dot(&sol, aadd);
         }
 
         // Add constraint iadd to the active set.
@@ -527,17 +531,25 @@ pub fn solve_qp(
     }
 
     Ok(Solution {
-        obj: obj,
-        sol: sol,
-        lagr: lagr,
-        iact: iact,
-        iter: iter,
+        obj,
+        sol,
+        lagr,
+        iact,
+        iter,
     })
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::many_single_char_names,
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::cast_precision_loss,
+    clippy::implicit_clone
+)]
 mod tests {
-    use super::{solve_qp, Solution};
+    use super::{Solution, solve_qp};
     use approx::assert_relative_eq;
 
     fn assert_slices_eq(actual: &[f64], expected: &[f64]) {

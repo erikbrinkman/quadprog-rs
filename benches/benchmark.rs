@@ -1,4 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+#![warn(clippy::pedantic)]
+
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use quadprog::solve_qp;
 
 fn barbiggs_benchmark(crit: &mut Criterion) {
@@ -90,7 +92,7 @@ fn barbiggs_benchmark(crit: &mut Criterion) {
     ];
     crit.bench_function("barbiggs", |bench| {
         bench.iter(|| {
-            let mut qm = q.clone();
+            let mut qm = q;
             solve_qp(
                 black_box(&mut qm),
                 black_box(&c),
@@ -100,7 +102,7 @@ fn barbiggs_benchmark(crit: &mut Criterion) {
                 black_box(false),
             )
             .unwrap();
-        })
+        });
     });
 }
 
@@ -138,7 +140,7 @@ fn large_benchmark(crit: &mut Criterion) {
                 )
                 .unwrap();
                 assert_eq!(res.iter - res.iact.len(), size);
-            })
+            });
         });
     }
 }
