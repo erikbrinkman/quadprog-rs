@@ -7,12 +7,7 @@ documentation = "https://docs.rs/quadprog"
 description = "A dense quadratic program solver in pure rust"
 license = "GPL-2.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.86"
 
 [dev-dependencies]
-approx = "0.5.0"
-criterion = "0.3"
-
-[[bench]]
-name = "benchmark"
-harness = false
+approx = "0.5"
