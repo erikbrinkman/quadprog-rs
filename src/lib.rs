@@ -1179,4 +1179,25 @@ mod tests {
         let msg = solve_qp(&mut [1.], &[0.], &[-1., 1.], &[-1., -1.], 0, false).unwrap_err();
         assert_eq!(msg, "optimization is infeasible");
     }
+
+    // Regression test for https://github.com/erikbrinkman/quadprog-rs/issues/1.
+    // In 0.0.1 this input made the solver loop indefinitely.
+    #[test]
+    fn it_terminates_on_issue_1() {
+        let mut qmat = [
+            1e3, 0., 0., 0., 0., //
+            -1e2, 1e2, 0., 0., 0., //
+            1e1, -1e1, 1e-24, 0., 0., //
+            1., -1e1, 1e-9, 1e-9, 0., //
+            1e1, -1e1, 0., 1e-9, 2e-9, //
+        ];
+        let cvec = [-1e-6, -1e-5, -1e21, 1e21, -1e20];
+        let amat = [
+            0., 0., 0., -1., 0., //
+            0., 0., 0., 0., -1., //
+        ];
+        let bvec = [-1e-18, -1e-18];
+
+        solve_qp(&mut qmat, &cvec, &amat, &bvec, 0, true).unwrap();
+    }
 }
