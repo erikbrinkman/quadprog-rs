@@ -38,9 +38,6 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 
-#[cfg(test)]
-extern crate approx;
-
 use std::cmp::min;
 
 /// integer sqrt
@@ -162,17 +159,6 @@ fn cholesky(mat: &mut [f64]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// compute sqrt(a^2 + b^2)
-fn hypot(left: f64, right: f64) -> f64 {
-    let (min, max) = if left < right {
-        (left, right)
-    } else {
-        (right, left)
-    };
-    let ratio = min / max;
-    max * (1.0 + ratio * ratio).sqrt()
-}
-
 /// get length len slices to the left and right of split
 ///
 /// for a matrix this will be neighboring rows.
@@ -202,7 +188,7 @@ fn qr_insert(r: usize, vec: &mut [f64], mat: &mut [f64]) {
             left.swap_with_slice(right);
         } else {
             // Compute a Givens rotation.
-            let h = hypot(vec[i - 1], vec[i]).copysign(vec[i - 1]);
+            let h = vec[i - 1].hypot(vec[i]).copysign(vec[i - 1]);
             let gc = vec[i - 1] / h;
             let gs = vec[i] / h;
             // this saves a fourth multiplication in the inner loop below
@@ -252,7 +238,7 @@ fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
             left.swap_with_slice(right);
         } else {
             // Compute a Givens rotation.
-            let h = hypot(rmat[l - 1], rmat[l]).copysign(rmat[l - 1]);
+            let h = rmat[l - 1].hypot(rmat[l]).copysign(rmat[l - 1]);
             let gc = rmat[l - 1] / h;
             let gs = rmat[l] / h;
             // this saves a fourth multiplication in the inner loop below
@@ -285,7 +271,8 @@ fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
 /// - `lagr` is a vector the lagrange multipliers for each constraint
 /// - `iact` are the indices of the active constraints
 /// - `iter` is the number of added constraints over the course of execution
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[must_use]
 pub struct Solution {
     pub obj: f64,
     pub sol: Vec<f64>,
@@ -1198,6 +1185,6 @@ mod tests {
         ];
         let bvec = [-1e-18, -1e-18];
 
-        solve_qp(&mut qmat, &cvec, &amat, &bvec, 0, true).unwrap();
+        let _ = solve_qp(&mut qmat, &cvec, &amat, &bvec, 0, true).unwrap();
     }
 }
