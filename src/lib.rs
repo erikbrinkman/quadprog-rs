@@ -1,45 +1,6 @@
-//! Solve dense quadratic programs.
-//!
-//! This crate implements the Goldfarb-Idnani method for solving quadratic programs of the form:
-//!
-//! ```text
-//!     minimize     1/2 x' Q x + c' x
-//!     subject to   A1 x  = b1
-//!                  A2 x <= b2
-//! ```
-//!
-//! in pure rust. These are solved via the only exported function [`solve_qp`] which returns a
-//! [`Solution`] struct.
-//!
-//! # Examples
-//!
-//! If we want to solve
-//! ```text
-//!     minimize     1/2 x^2 + 1/2 y^2 + x
-//!     subject to   x + 2 y >= 1
-//! ```
-//!
-//! we can do so with the following example:
-//!
-//! ```
-//! # use quadprog::solve_qp;
-//! let mut q = [1., 0., 0., 1.];
-//! let c = [1., 0.];
-//! let a = [-1., -2.];
-//! let b = [-1.];
-//! let sol = solve_qp(&mut q, &c, &a, &b, 0, false).unwrap();
-//! assert_eq!(sol.sol, &[-0.6, 0.8]);
-//! ```
-//!
-//! # References
-//!
-//! D. Goldfarb and A. Idnani (1983). A numerically stable dual method for solving strictly
-//! convex quadratic programs. Mathematical Programming, 27, 1-33.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![warn(clippy::pedantic)]
-
-#[cfg(test)]
-extern crate approx;
+#![warn(clippy::pedantic, missing_docs)]
 
 use std::cmp::min;
 
@@ -162,17 +123,6 @@ fn cholesky(mat: &mut [f64]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// compute sqrt(a^2 + b^2)
-fn hypot(left: f64, right: f64) -> f64 {
-    let (min, max) = if left < right {
-        (left, right)
-    } else {
-        (right, left)
-    };
-    let ratio = min / max;
-    max * (1.0 + ratio * ratio).sqrt()
-}
-
 /// get length len slices to the left and right of split
 ///
 /// for a matrix this will be neighboring rows.
@@ -202,7 +152,7 @@ fn qr_insert(r: usize, vec: &mut [f64], mat: &mut [f64]) {
             left.swap_with_slice(right);
         } else {
             // Compute a Givens rotation.
-            let h = hypot(vec[i - 1], vec[i]).copysign(vec[i - 1]);
+            let h = vec[i - 1].hypot(vec[i]).copysign(vec[i - 1]);
             let gc = vec[i - 1] / h;
             let gs = vec[i] / h;
             // this saves a fourth multiplication in the inner loop below
@@ -252,7 +202,7 @@ fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
             left.swap_with_slice(right);
         } else {
             // Compute a Givens rotation.
-            let h = hypot(rmat[l - 1], rmat[l]).copysign(rmat[l - 1]);
+            let h = rmat[l - 1].hypot(rmat[l]).copysign(rmat[l - 1]);
             let gc = rmat[l - 1] / h;
             let gs = rmat[l] / h;
             // this saves a fourth multiplication in the inner loop below
@@ -278,19 +228,19 @@ fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
     }
 }
 
-/// The solution to a quadratic program
-///
-/// - `obj` is the objective value
-/// - `sol` is the vector solution
-/// - `lagr` is a vector the lagrange multipliers for each constraint
-/// - `iact` are the indices of the active constraints
-/// - `iter` is the number of added constraints over the course of execution
-#[derive(Debug)]
+/// The solution to a quadratic program.
+#[derive(Debug, Clone)]
+#[must_use]
 pub struct Solution {
+    /// The objective value at the optimum.
     pub obj: f64,
+    /// The primal solution vector.
     pub sol: Vec<f64>,
+    /// The Lagrange multiplier for each constraint, in the order they appear in `amat`.
     pub lagr: Vec<f64>,
+    /// The indices of the active constraints at the optimum.
     pub iact: Vec<usize>,
+    /// The number of constraints added to the active set over the course of the solve.
     pub iter: usize,
 }
 
@@ -1198,6 +1148,6 @@ mod tests {
         ];
         let bvec = [-1e-18, -1e-18];
 
-        solve_qp(&mut qmat, &cvec, &amat, &bvec, 0, true).unwrap();
+        let _ = solve_qp(&mut qmat, &cvec, &amat, &bvec, 0, true).unwrap();
     }
 }
