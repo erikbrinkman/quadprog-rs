@@ -8,6 +8,8 @@ description = "A dense quadratic program solver in pure rust"
 license = "GPL-2.0"
 edition = "2024"
 rust-version = "1.86"
+keywords = ["quadratic", "programming", "optimization", "qp", "solver"]
+categories = ["mathematics", "science"]
 
 [dev-dependencies]
 approx = "0.5"
