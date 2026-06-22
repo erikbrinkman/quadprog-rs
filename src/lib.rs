@@ -499,8 +499,17 @@ pub fn solve_qp(
     clippy::implicit_clone
 )]
 mod tests {
-    use super::{Solution, solve_qp};
+    use super::{Solution, qr_delete, solve_qp};
     use approx::assert_relative_eq;
+
+    #[test]
+    fn qr_delete_skips_zero_subdiagonal() {
+        // Degenerate case: the element qr_delete would rotate to zero is already zero,
+        // so the inner loop hits the early-continue branch.
+        let mut qmat = [1.0, 0.0, 0.0, 1.0];
+        let mut rmat = [0.0, 1.0, 0.0];
+        qr_delete(2, 0, &mut qmat, &mut rmat);
+    }
 
     fn assert_slices_eq(actual: &[f64], expected: &[f64]) {
         assert_eq!(actual.len(), expected.len());
