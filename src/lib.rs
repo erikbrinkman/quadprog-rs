@@ -258,8 +258,9 @@ pub struct Solution {
 /// Both `qmat` and `amat` must be in row-major order, e.g. the first elements of amat correspond
 /// to its first row.
 ///
-/// If `factorized` is true, qmat should be the upper triangular cholesky decomposition of `Q`, i.e.
-/// `Q` should instead be `L'` in `L L' = Q`.
+/// If `factorized` is true, qmat should instead be the inverse of the lower triangular Cholesky
+/// factor of `Q`, i.e. `L^-1` in row-major order where `L L' = Q`. Note that `L^-1` is lower
+/// triangular; its upper triangle is zero.
 ///
 /// Note that `Q` is mutable, and is used for part of the computation. If you need to use `Q`
 /// afterward, make a copy first.
@@ -406,8 +407,8 @@ pub fn solve_qp(
             idel = r;
             let mut t1 = f64::INFINITY;
             for (i, ((uvi, rvi), act)) in uv.iter().zip(rv.iter()).zip(iact.iter()).enumerate() {
-                if act >= &meq && rvi > &0.0 {
-                    let temp = uvi / rvi;
+                if act >= &meq && ((!reverse_step && *rvi > 0.0) || (reverse_step && *rvi < 0.0)) {
+                    let temp = uvi / rvi.abs();
                     if temp < t1 {
                         t1 = temp;
                         idel = i;
@@ -1137,6 +1138,27 @@ mod tests {
     fn it_errors_for_invalid_constraints() {
         let msg = solve_qp(&mut [1.], &[0.], &[-1., 1.], &[-1., -1.], 0, false).unwrap_err();
         assert_eq!(msg, "optimization is infeasible");
+    }
+
+    // Regression test for the reverse_step direction bug: when an equality constraint
+    // enters with positive slack while inequalities are active, the t1 test must condition
+    // on rv[i] < 0 (not > 0). Otherwise the solver truncates the step at a multiplier that
+    // is increasing, removes that constraint from the active set with a nonzero multiplier,
+    // and returns wrong Lagrange multipliers.
+    //
+    // Problem: minimize 1/2 (x^2 + y^2) subject to x + y = 1, x <= -1.
+    // KKT solution at (-1, 2): lagr = [2, 3].
+    #[test]
+    fn it_handles_reverse_step_with_active_inequality() {
+        let mut q = [1., 0., 0., 1.];
+        let c = [0., 0.];
+        let a = [
+            1., 1., //
+            1., 0., //
+        ];
+        let b = [1., -1.];
+        let res = solve_qp(&mut q, &c, &a, &b, 1, false).unwrap();
+        verify_solution(&res, 2.5, vec![-1., 2.], vec![2., 3.], vec![0, 1], 2);
     }
 
     // Regression test for https://github.com/erikbrinkman/quadprog-rs/issues/1.
