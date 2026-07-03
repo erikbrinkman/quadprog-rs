@@ -103,7 +103,7 @@ fn triangular_invert(mat: &mut [f64]) {
 /// Find the upper triangular matrix r such that a = transpose(r) * r, where a is positive definite.
 /// The result is written into the upper triangle of a.
 /// Errs if a is not positive definite.
-fn cholesky(mat: &mut [f64]) -> Result<(), &'static str> {
+fn cholesky(mat: &mut [f64]) -> Result<(), Error> {
     let n = usqrt(mat.len());
     debug_assert_eq!(n * n, mat.len());
     for j in 0..n {
@@ -114,7 +114,7 @@ fn cholesky(mat: &mut [f64]) -> Result<(), &'static str> {
 
         let s = mat[j + j * n] - dot(&mat[j * n..j * n + j], &mat[j * n..j * n + j]);
         if s <= 0.0 {
-            return Err("matrix not positive definite");
+            return Err(Error::NotPositiveDefinite);
         }
 
         mat[j + j * n] = s.sqrt();
@@ -228,6 +228,33 @@ fn qr_delete(r: usize, col: usize, qmat: &mut [f64], rmat: &mut [f64]) {
     }
 }
 
+/// Errors returned by [`solve_qp`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Error {
+    /// `qmat` was not the appropriate size given `cvec`.
+    InvalidQSize,
+    /// `amat` was not the appropriate size given `cvec` and `bvec`.
+    InvalidASize,
+    /// `Q` was not positive definite.
+    NotPositiveDefinite,
+    /// The optimization problem was infeasible.
+    Infeasible,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidQSize => "qmat was not appropriate size given cvec",
+            Self::InvalidASize => "amat was not appropriate size given cvec and bvec",
+            Self::NotPositiveDefinite => "matrix not positive definite",
+            Self::Infeasible => "optimization is infeasible",
+        })
+    }
+}
+
+impl std::error::Error for Error {}
+
 /// The solution to a quadratic program.
 #[derive(Debug, Clone)]
 #[must_use]
@@ -267,8 +294,9 @@ pub struct Solution {
 ///
 /// # Errors
 ///
-/// Returns an error string if `qmat` or `amat` have inconsistent sizes given `cvec` and `bvec`,
-/// if `Q` is not positive definite, or if the problem is infeasible.
+/// Returns [`Error::InvalidQSize`] or [`Error::InvalidASize`] if `qmat` or `amat` have
+/// inconsistent sizes given `cvec` and `bvec`, [`Error::NotPositiveDefinite`] if `Q` is not
+/// positive definite, or [`Error::Infeasible`] if the problem is infeasible.
 #[allow(clippy::too_many_lines)]
 pub fn solve_qp(
     qmat: &mut [f64],
@@ -277,15 +305,15 @@ pub fn solve_qp(
     bvec: &[f64],
     meq: usize,
     factorized: bool,
-) -> Result<Solution, &'static str> {
+) -> Result<Solution, Error> {
     let n = cvec.len();
     let q = bvec.len();
     let r = min(n, q);
     if qmat.len() != n * n {
-        return Err("qmat was not appropriate size given cvec");
+        return Err(Error::InvalidQSize);
     }
     if amat.len() != n * q {
-        return Err("amat was not appropriate size given cvec and bvec");
+        return Err(Error::InvalidASize);
     }
 
     // NOTE we allocate all the work space in one go to remove unnecessary applications
@@ -427,7 +455,7 @@ pub fn solve_qp(
                 (temp_ztn, slack.abs() / temp_ztn)
             };
             if t1 == f64::INFINITY && t2 == f64::INFINITY {
-                return Err("optimization is infeasible");
+                return Err(Error::Infeasible);
             }
 
             // We will take a full step if t2 <= t1.
@@ -500,7 +528,7 @@ pub fn solve_qp(
     clippy::implicit_clone
 )]
 mod tests {
-    use super::{Solution, qr_delete, solve_qp};
+    use super::{Error, Solution, qr_delete, solve_qp};
     use approx::assert_relative_eq;
 
     #[test]
@@ -1118,26 +1146,33 @@ mod tests {
 
     #[test]
     fn it_errors_for_invalid_q_size() {
-        let msg = solve_qp(&mut [1., 0., 0.], &[0., 5.], &[], &[], 0, false).unwrap_err();
-        assert_eq!(msg, "qmat was not appropriate size given cvec");
+        let err = solve_qp(&mut [1., 0., 0.], &[0., 5.], &[], &[], 0, false).unwrap_err();
+        assert_eq!(err, Error::InvalidQSize);
+        assert_eq!(err.to_string(), "qmat was not appropriate size given cvec");
     }
 
     #[test]
     fn it_errors_for_invalid_c_size() {
-        let msg = solve_qp(&mut [1., 0., 0., 1.], &[0., 5.], &[0.], &[], 0, false).unwrap_err();
-        assert_eq!(msg, "amat was not appropriate size given cvec and bvec");
+        let err = solve_qp(&mut [1., 0., 0., 1.], &[0., 5.], &[0.], &[], 0, false).unwrap_err();
+        assert_eq!(err, Error::InvalidASize);
+        assert_eq!(
+            err.to_string(),
+            "amat was not appropriate size given cvec and bvec"
+        );
     }
 
     #[test]
     fn it_errors_for_non_positive_definite_q() {
-        let msg = solve_qp(&mut [-1.], &[0.], &[], &[], 0, false).unwrap_err();
-        assert_eq!(msg, "matrix not positive definite");
+        let err = solve_qp(&mut [-1.], &[0.], &[], &[], 0, false).unwrap_err();
+        assert_eq!(err, Error::NotPositiveDefinite);
+        assert_eq!(err.to_string(), "matrix not positive definite");
     }
 
     #[test]
     fn it_errors_for_invalid_constraints() {
-        let msg = solve_qp(&mut [1.], &[0.], &[-1., 1.], &[-1., -1.], 0, false).unwrap_err();
-        assert_eq!(msg, "optimization is infeasible");
+        let err = solve_qp(&mut [1.], &[0.], &[-1., 1.], &[-1., -1.], 0, false).unwrap_err();
+        assert_eq!(err, Error::Infeasible);
+        assert_eq!(err.to_string(), "optimization is infeasible");
     }
 
     // Regression test for the reverse_step direction bug: when an equality constraint
