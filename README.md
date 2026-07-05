@@ -15,7 +15,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quadprog = "*"
+quadprog = "0.0"
 ```
 
 Then solve a strictly convex QP of the form:
