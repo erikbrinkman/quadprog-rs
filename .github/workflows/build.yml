@@ -19,6 +19,6 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: cargo fmt --check
       - run: cargo clippy --lib --tests -- -D warnings
-      - run: cargo llvm-cov
+      - run: cargo llvm-cov --fail-under-lines 100
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
       - run: cargo +nightly bench
