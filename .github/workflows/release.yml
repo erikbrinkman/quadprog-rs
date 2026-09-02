@@ -1,52 +1,37 @@
+# Publish a tagged release to crates.io, then the GitHub release; keep the name release.yml for crates.io trusted publishing.
 name: release
-
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: Version bump
+      tag:
+        description: "Release tag to publish (e.g. v0.3.0)"
         required: true
-        type: choice
-        options: [patch, minor, major]
+        type: string
 
-permissions: {}
-concurrency: { group: release, cancel-in-progress: false }
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # trusted publishing to crates.io
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    uses: ./.github/workflows/build.yml
-
-  release:
-    needs: build
+  publish:
     runs-on: ubuntu-latest
     environment: release
-    permissions:
-      contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@v2
-        with: { tool: cargo-release }
-      - name: Configure git identity
-        run: |
-          git config user.name  'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-      - name: Bump, commit, tag
-        run: |
-          cargo release version "${{ inputs.bump }}" --execute --no-confirm
-          VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')
-          git commit -am "chore: release v${VERSION}"
-          git tag "v${VERSION}"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-      - run: git push --atomic origin HEAD "v${VERSION}"
+      - uses: Swatinem/rust-cache@v2
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
-      - run: cargo publish
+      - name: Publish to crates.io
+        run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-      - run: gh release create "v${VERSION}" --generate-notes --verify-tag
+      - name: Create GitHub release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ inputs.tag }}" --generate-notes --verify-tag
